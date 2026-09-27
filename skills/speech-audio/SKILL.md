@@ -5,7 +5,7 @@ description: Record Thai practice on demand, transcribe locally, generate speech
 
 # Speech audio
 
-Use this skill only when the user requests spoken audio. A standing request to hear each newly introduced word/phrase counts: generate TTS for every such item during that lesson and include its embed. Do not generate audio automatically when no such request exists.
+Use this skill when the user requests spoken audio. For this user, every Thai lesson has a standing request for TTS: generate separate audio for each newly introduced Thai word or phrase and include its embed alongside the script and romanization, before using the item in a quiz. This includes items in examples and quiz options; do not make an unvoiced Thai item a recognition target. This standing Thai preference overrides the general rule not to generate audio automatically. For other languages, generate audio only when requested.
 
 ## Record and analyze learner speech
 
