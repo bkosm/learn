@@ -1,0 +1,4 @@
+#!/bin/bash
+
+exec tmux new -A -s pi 'pi'
+
