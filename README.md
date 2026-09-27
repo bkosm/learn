@@ -12,8 +12,10 @@ This is a personal system I built for myself, shared as-is. Built as a pi config
 - `skills/visualize/` — adds a correct, minimal diagram to a lesson when an idea is clearer as a picture
 - `extensions/ask-user-question/` — the agent asks you questions through a UI popup
 - `extensions/quiz/` — graded questions with instant feedback (✓/✗, correct answer, explanation)
-- `extensions/md-log/` — link a markdown file to the session
+- `extensions/md-log.ts` — agent-callable `claim_lesson_note` creates the next numbered lesson note and links/backfills the session; `/md-log` remains available for manual links
 - `extensions/visual-tools/` — tools for visualization subagents
+- `extensions/speech-audio.ts` — on-demand local Thai MP3 generation, microphone recording, and Whisper transcription for Obsidian lessons
+- `skills/speech-audio/` — instructions for generating and embedding Thai speech audio
 - `agents/` — `researcher`, `svg-maker`, `mermaid-maker`: the subagents the system delegates to
 
 ## Install
@@ -31,6 +33,12 @@ Then open pi in that directory. (Or copy the pieces you want into your existing 
 - [pi](https://github.com/earendil-works/pi)
 - A subagent implementation, so the system can spawn the researcher and the visual makers. Recommended: [pi-interactive-subagents](https://github.com/amosblomqvist/pi-interactive-subagents) (tmux only). With it, everything works out of the box. Any other implementation works too, but expect to adapt the agent definitions, e.g. `agents/researcher.md` lists `safe_bash` in its tools, which is specific to that extension.
 - `ask-user-question` — use the copy bundled here. If your setup already has an `ask-user-question` extension, use **this** one in its place. Popups from different extensions serialize through a shared UI lock, which only works when it's the same implementation.
+
+### Install suggested subagents implementation
+
+```bash
+pi install git:github.com/amosblomqvist/pi-interactive-subagents
+```
 
 ## Notes
 

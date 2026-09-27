@@ -26,10 +26,21 @@
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { Type } from "@sinclair/typebox";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
 const QA_TOOLS = new Set(["quiz", "ask_user_question"]);
+const INTERNAL_USER_PREFIXES = ["[[thai-speaking-practice-internal]]"];
+
+function slugify(value: string): string {
+	return value
+		.normalize("NFKD")
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "")
+		.slice(0, 60) || "lesson";
+}
 
 export default function mdLog(pi: ExtensionAPI) {
 	let logFile: string | null = null;
@@ -209,7 +220,7 @@ export default function mdLog(pi: ExtensionAPI) {
 					? msg.content.filter((c: any) => c.type === "text").map((c: any) => c.text).join("\n")
 					: "";
 			const trimmed = stripSkillBlocks(text.trim());
-			if (!trimmed) return;
+			if (!trimmed || INTERNAL_USER_PREFIXES.some((prefix) => trimmed.startsWith(prefix))) return;
 			await withLock(() => appendToFile(userBlock(trimmed)));
 			return;
 		}
@@ -274,6 +285,64 @@ export default function mdLog(pi: ExtensionAPI) {
 			? answerCalloutQuiz(details)
 			: answerCalloutAsk(details);
 		await withLock(() => appendToFile(block));
+	});
+
+	// --- Agent-callable lesson note setup ---
+
+	pi.registerTool({
+		name: "claim_lesson_note",
+		label: "Claim Lesson Note",
+		description:
+			"At the beginning of a new language lesson/session, create the next unused " +
+			"sessions/NN-<slug>.md note, link md-log to it, and backfill the current session. " +
+			"Call once per new lesson, not for every follow-up turn. This replaces asking the " +
+			"user to run /md-log manually.",
+		parameters: Type.Object({
+			title: Type.String({ description: "Human-readable lesson title." }),
+			slug: Type.Optional(Type.String({ description: "Short kebab-case topic slug." })),
+		}),
+		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+			const title = String(params.title ?? "").trim();
+			if (!title) throw new Error("`claim_lesson_note` requires a lesson title.");
+
+			const sessionsDir = path.join(ctx.cwd, "sessions");
+			fs.mkdirSync(sessionsDir, { recursive: true });
+			const slug = slugify(String(params.slug || title));
+			const used = new Set(
+				fs.readdirSync(sessionsDir)
+					.map((name) => /^(\d+)-.+\.md$/i.exec(name)?.[1])
+					.filter((value): value is string => value !== undefined)
+					.map(Number),
+			);
+			let index = 1;
+			while (used.has(index)) index++;
+			let resolved = "";
+			while (!resolved) {
+				const filename = `${String(index).padStart(2, "0")}-${slug}.md`;
+				const candidate = path.join(sessionsDir, filename);
+				try {
+					fs.writeFileSync(candidate, `# ${title}\n`, { encoding: "utf8", flag: "wx" });
+					resolved = candidate;
+				} catch (error) {
+					if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+					index++;
+				}
+			}
+
+			logFile = resolved;
+			pi.appendEntry("md-log", { file: resolved });
+			const written = backfill(ctx);
+			if (ctx.hasUI) {
+				const theme = ctx.ui.theme;
+				ctx.ui.setStatus("md-log", theme.fg("accent", "🗒 ") + theme.fg("dim", path.basename(resolved)));
+				ctx.ui.notify(`Lesson note created and linked: ${path.relative(ctx.cwd, resolved)}`, "success");
+			}
+			const relative = path.relative(ctx.cwd, resolved);
+			return {
+				content: [{ type: "text", text: `Created and linked ${relative}. Backfilled ${written} existing session entries; new lesson content will be logged automatically.` }],
+				details: { ok: true, file: resolved, relativePath: relative, title, backfilledEntries: written },
+			};
+		},
 	});
 
 	// --- Commands ---
